@@ -39,7 +39,11 @@ fn config() -> Config {
         .with_generator_flags(GeneratorFlags::FLATTEN_CONTENT)
         .with_derive(["Debug", "PartialEq"])
         .with_render_steps([
-            RenderStep::TypesSerdeQuickXml { large_arrays: true },
+            RenderStep::TypesSerdeQuickXml {
+                large_arrays: true,
+                skip_none: false,
+                skip_empty_vecs: false,
+            },
             RenderStep::Defaults,
         ])
 }
@@ -67,7 +71,11 @@ fn generate_serde_quick_xml() {
         config()
             .with_derive(["Debug", "PartialEq"])
             .with_serde_quick_xml()
-            .with_render_step(RenderStep::TypesSerdeQuickXml { large_arrays: true }),
+            .with_render_step(RenderStep::TypesSerdeQuickXml {
+                large_arrays: true,
+                skip_none: false,
+                skip_empty_vecs: false,
+            }),
     );
 }
 
@@ -81,6 +89,8 @@ fn generate_serde_xml_rs_v7() {
             .with_render_step(RenderStep::TypesSerdeXmlRs {
                 version: SerdeXmlRsVersion::Version07AndBelow,
                 large_arrays: true,
+                skip_none: false,
+                skip_empty_vecs: false,
             }),
     );
 }
@@ -95,6 +105,8 @@ fn generate_serde_xml_rs_v8() {
             .with_render_step(RenderStep::TypesSerdeXmlRs {
                 version: SerdeXmlRsVersion::Version08AndAbove,
                 large_arrays: true,
+                skip_none: false,
+                skip_empty_vecs: false,
             }),
     );
 }
@@ -137,22 +149,42 @@ fn configured_and_direct_serde_steps_use_the_same_options() {
     let data = exec_generator(config.generator, &schemas, &meta).unwrap();
     let steps: [(RenderStep, Box<dyn RendererStep>); 3] = [
         (
-            RenderStep::TypesSerdeQuickXml { large_arrays: true },
-            Box::new(SerdeQuickXmlTypesRenderStep { large_arrays: true }),
+            RenderStep::TypesSerdeQuickXml {
+                large_arrays: true,
+                skip_none: true,
+                skip_empty_vecs: true,
+            },
+            Box::new(SerdeQuickXmlTypesRenderStep {
+                large_arrays: true,
+                skip_none: true,
+                skip_empty_vecs: true,
+            }),
         ),
         (
             RenderStep::TypesSerdeXmlRs {
                 version: SerdeXmlRsVersion::Version07AndBelow,
                 large_arrays: true,
+                skip_none: true,
+                skip_empty_vecs: true,
             },
-            Box::new(SerdeXmlRsV7TypesRenderStep { large_arrays: true }),
+            Box::new(SerdeXmlRsV7TypesRenderStep {
+                large_arrays: true,
+                skip_none: true,
+                skip_empty_vecs: true,
+            }),
         ),
         (
             RenderStep::TypesSerdeXmlRs {
                 version: SerdeXmlRsVersion::Version08AndAbove,
                 large_arrays: true,
+                skip_none: true,
+                skip_empty_vecs: true,
             },
-            Box::new(SerdeXmlRsV8TypesRenderStep { large_arrays: true }),
+            Box::new(SerdeXmlRsV8TypesRenderStep {
+                large_arrays: true,
+                skip_none: true,
+                skip_empty_vecs: true,
+            }),
         ),
     ];
     for (config_step, direct_step) in steps {
@@ -280,4 +312,39 @@ fn reads_large_named_arrays_with_serde_xml_rs_v7() {
     let decoded: serde_xml_rs_v7::NamedArrayType = ::serde_xml_rs_v7::from_str(&xml).unwrap();
     assert_eq!(decoded.sample, packet.sample);
     assert_eq!(decoded.threshold, packet.threshold);
+}
+
+#[test]
+fn generate_serde_xml_rs_v8_skipping() {
+    generate(
+        "tests/feature/serde_large_arrays/expected/serde_xml_rs_v8_skipping.rs",
+        config().with_render_step(RenderStep::TypesSerdeXmlRs {
+            version: SerdeXmlRsVersion::Version08AndAbove,
+            large_arrays: true,
+            skip_none: true,
+            skip_empty_vecs: true,
+        }),
+    );
+}
+
+#[cfg(not(feature = "update-expectations"))]
+mod serde_xml_rs_v8_skipping {
+    include!("expected/serde_xml_rs_v8_skipping.rs");
+}
+
+#[test]
+#[cfg(not(feature = "update-expectations"))]
+fn skips_empty_vectors_when_xml_rs_v8_converts_fixed_arrays() {
+    let empty = serde_xml_rs_v8_skipping::NamedArrayType {
+        sample: vec![],
+        threshold: vec![],
+    };
+    assert_eq!(serde_json::to_string(&empty).unwrap(), "{}");
+    let value = serde_json::json!({
+        "tns:Sample": vec!["sample"; 64],
+        "tns:Threshold": vec![8; 33],
+    });
+    let decoded: serde_xml_rs_v8_skipping::NamedArrayType =
+        serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(serde_json::to_value(decoded).unwrap(), value);
 }

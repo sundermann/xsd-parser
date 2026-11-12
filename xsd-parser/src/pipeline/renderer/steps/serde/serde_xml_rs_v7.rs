@@ -1,7 +1,7 @@
 use proc_macro2::{Ident as Ident2, TokenStream};
 use quote::quote;
 
-use super::SerdeOptions;
+use super::{field_overrides, SerdeOptions};
 
 use crate::config::{RendererFlags, TypedefMode};
 use crate::models::{
@@ -24,6 +24,12 @@ pub struct SerdeXmlRsV7TypesRenderStep {
     /// Adapt arrays longer than 32 elements. Disabled by default.
     /// Requires `serde_with` with `std` or `alloc` in the generated-code crate.
     pub large_arrays: bool,
+
+    /// Skip serializing named fields containing `None`. Disabled by default.
+    pub skip_none: bool,
+
+    /// Skip serializing named fields containing empty vectors. Disabled by default.
+    pub skip_empty_vecs: bool,
 }
 
 impl RenderStep for SerdeXmlRsV7TypesRenderStep {
@@ -34,6 +40,8 @@ impl RenderStep for SerdeXmlRsV7TypesRenderStep {
     fn render_type(&mut self, ctx: &mut Context<'_, '_>) {
         let options = SerdeOptions {
             large_arrays: self.large_arrays,
+            skip_none: self.skip_none,
+            skip_empty_vecs: self.skip_empty_vecs,
             arrays_as_vec: false,
         };
         match &ctx.data.variant {
@@ -426,18 +434,25 @@ impl ComplexDataContent<'_> {
         let target_type = self.occurs.make_type(ctx, &target_type, false)?;
         let extra_attributes = &self.extra_attributes;
 
-        let has_default = self.is_empty_string_content(ctx) || self.min_occurs == 0;
+        let mut overrides = field_overrides(&self.extra_attributes);
+        let has_default =
+            !overrides.has_default && (self.is_empty_string_content(ctx) || self.min_occurs == 0);
         let default = if has_default {
             quote!(default,)
         } else {
             quote!()
         };
-        let serde_attributes = self.serde_field_attributes(ctx, options, has_default);
+        overrides.has_default |= has_default;
+        let serde_attributes = self.serde_field_attributes(
+            ctx,
+            options,
+            &overrides,
+            &quote!(#default rename = "$value"),
+        );
 
         Some(quote! {
             #( #[#extra_attributes] )*
             #serde_attributes
-            #[serde(#default rename = "$value")]
             pub #field_ident: #target_type,
         })
     }
@@ -468,17 +483,26 @@ impl ComplexDataAttribute<'_> {
             target_type
         };
 
-        let has_default = self.default_value.is_some() || self.meta.use_ == Use::Optional;
-        let default = if self.default_value.is_some() {
-            let default_path = format!("{type_ident}::default_{field_ident}");
+        let mut overrides = field_overrides(&self.extra_attributes);
+        let has_default = !overrides.has_default
+            && (self.default_value.is_some() || self.meta.use_ == Use::Optional);
+        let default = has_default.then(|| {
+            if self.default_value.is_some() {
+                let default_path = format!("{type_ident}::default_{field_ident}");
 
-            quote!(default = #default_path,)
-        } else if self.meta.use_ == Use::Optional {
-            quote!(default,)
-        } else {
-            quote!()
-        };
-        let serde_attributes = self.serde_field_attributes(ctx, options, has_default);
+                quote!(default = #default_path,)
+            } else {
+                quote!(default,)
+            }
+        });
+        overrides.has_default |= has_default;
+        overrides.has_custom_default |= has_default && self.default_value.is_some();
+        let serde_attributes = self.serde_field_attributes(
+            ctx,
+            options,
+            &overrides,
+            &quote!(#default rename = #tag_name),
+        );
 
         let docs = ctx.render_docs(
             RendererFlags::RENDER_ATTRIBUTE_DOCS,
@@ -489,7 +513,6 @@ impl ComplexDataAttribute<'_> {
             #docs
             #( #[#extra_attributes] )*
             #serde_attributes
-            #[serde(#default rename = #tag_name)]
             pub #field_ident: #target_type,
         }
     }
@@ -525,18 +548,22 @@ impl ComplexDataElement<'_> {
             &self.meta().documentation[..],
         );
 
-        let has_default = matches!(self.occurs, Occurs::Optional | Occurs::DynamicList);
-        let default = match self.occurs {
-            Occurs::None | Occurs::Single | Occurs::StaticList(_) => quote!(),
-            Occurs::Optional | Occurs::DynamicList => quote!(default,),
+        let mut overrides = field_overrides(&self.extra_attributes);
+        let has_default = !overrides.has_default
+            && (matches!(self.occurs, Occurs::Optional | Occurs::DynamicList));
+        let default = if has_default {
+            quote!(default,)
+        } else {
+            quote!()
         };
-        let serde_attributes = self.serde_field_attributes(ctx, options, has_default);
+        overrides.has_default |= has_default;
+        let serde_attributes =
+            self.serde_field_attributes(ctx, options, &overrides, &quote!(#default rename = #name));
 
         quote! {
             #docs
             #( #[#extra_attributes] )*
             #serde_attributes
-            #[serde(#default rename = #name)]
             pub #field_ident: #target_type,
         }
     }

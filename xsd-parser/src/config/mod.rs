@@ -337,6 +337,8 @@ impl Config {
         self.with_render_steps([
             RenderStep::TypesSerdeQuickXml {
                 large_arrays: false,
+                skip_none: false,
+                skip_empty_vecs: false,
             },
             RenderStep::Defaults,
         ])
@@ -350,6 +352,8 @@ impl Config {
             RenderStep::TypesSerdeXmlRs {
                 version,
                 large_arrays: false,
+                skip_none: false,
+                skip_empty_vecs: false,
             },
             RenderStep::Defaults,
         ])

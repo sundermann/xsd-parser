@@ -2,6 +2,7 @@ mod large_arrays;
 mod quick_xml;
 mod serde_xml_rs_v7;
 mod serde_xml_rs_v8;
+mod skip_empty;
 
 use std::str::FromStr;
 
@@ -11,7 +12,7 @@ use quote::quote;
 use crate::models::{
     code::IdentPath,
     data::{ComplexDataAttribute, ComplexDataContent, ComplexDataElement, Occurs, PathData},
-    meta::{ElementMetaVariant, MetaTypes},
+    meta::{AttributeMetaVariant, ElementMetaVariant, MetaTypes},
 };
 use crate::TypeIdent;
 
@@ -75,9 +76,12 @@ fn get_dyn_type_traits(ctx: &Context<'_, '_>) -> TokenStream {
 const DERIVE: [&str; 2] = ["Serialize", "Deserialize"];
 
 #[derive(Debug, Clone, Copy)]
+#[allow(clippy::struct_excessive_bools)] // Independent renderer policies can be combined.
 pub(crate) struct SerdeOptions {
     large_arrays: bool,
     arrays_as_vec: bool,
+    skip_none: bool,
+    skip_empty_vecs: bool,
 }
 
 impl Occurs {
@@ -90,10 +94,17 @@ impl Occurs {
 }
 
 #[derive(Debug, Default)]
+#[allow(clippy::struct_excessive_bools)] // Mirrors independent Serde field attributes.
 pub(crate) struct FieldOverrides {
     serialize: bool,
     deserialize: bool,
     has_default: bool,
+    has_custom_default: bool,
+    skip: bool,
+}
+
+fn is_assignment(token: Option<&TokenTree>) -> bool {
+    matches!(token, Some(TokenTree::Punct(p)) if p.as_char() == '=')
 }
 
 fn field_overrides(attributes: &[TokenStream]) -> FieldOverrides {
@@ -114,7 +125,8 @@ fn field_overrides(attributes: &[TokenStream]) -> FieldOverrides {
         let Some(TokenTree::Group(arguments)) = tokens.next() else {
             continue;
         };
-        for token in arguments.stream() {
+        let mut arguments = arguments.stream().into_iter().peekable();
+        while let Some(token) = arguments.next() {
             if let TokenTree::Ident(name) = token {
                 match name.to_string().as_str() {
                     "with" => {
@@ -123,7 +135,11 @@ fn field_overrides(attributes: &[TokenStream]) -> FieldOverrides {
                     }
                     "serialize_with" => result.serialize = true,
                     "deserialize_with" => result.deserialize = true,
-                    "default" => result.has_default = true,
+                    "default" => {
+                        result.has_default = true;
+                        result.has_custom_default |= is_assignment(arguments.peek());
+                    }
+                    "skip" | "skip_serializing" | "skip_serializing_if" => result.skip = true,
                     _ => (),
                 }
             }
@@ -137,12 +153,19 @@ impl ComplexDataElement<'_> {
         &self,
         ctx: &Context<'_, '_>,
         options: SerdeOptions,
-        has_default: bool,
+        overrides: &FieldOverrides,
+        arguments: &TokenStream,
     ) -> TokenStream {
-        let mut overrides = field_overrides(&self.extra_attributes);
-        overrides.has_default |= has_default;
-        let array_attribute = self.serde_array_field_attribute(ctx, options, &overrides);
-        quote!(#array_attribute)
+        let array_attribute = self.serde_array_field_attribute(ctx, options, overrides);
+        let skip = skip_empty::arguments(
+            ctx,
+            self.occurs,
+            self.serde_target_ident(),
+            self.meta().min_occurs == 0,
+            overrides,
+            options,
+        );
+        quote!(#array_attribute #[serde(#skip #arguments)])
     }
 }
 
@@ -151,12 +174,19 @@ impl ComplexDataContent<'_> {
         &self,
         ctx: &Context<'_, '_>,
         options: SerdeOptions,
-        has_default: bool,
+        overrides: &FieldOverrides,
+        arguments: &TokenStream,
     ) -> TokenStream {
-        let mut overrides = field_overrides(&self.extra_attributes);
-        overrides.has_default |= has_default;
-        let array_attribute = self.serde_array_attribute(ctx, options, &overrides);
-        quote!(#array_attribute)
+        let array_attribute = self.serde_array_attribute(ctx, options, overrides);
+        let skip = skip_empty::arguments(
+            ctx,
+            self.occurs,
+            self.target_type.serde_target_ident(self.simple_type),
+            self.min_occurs == 0,
+            overrides,
+            options,
+        );
+        quote!(#array_attribute #[serde(#skip #arguments)])
     }
 }
 
@@ -165,11 +195,26 @@ impl ComplexDataAttribute<'_> {
         &self,
         ctx: &Context<'_, '_>,
         options: SerdeOptions,
-        has_default: bool,
+        overrides: &FieldOverrides,
+        arguments: &TokenStream,
     ) -> TokenStream {
-        let mut overrides = field_overrides(&self.extra_attributes);
-        overrides.has_default |= has_default;
-        let array_attribute = self.serde_array_attribute(ctx, options, &overrides);
-        quote!(#array_attribute)
+        let array_attribute = self.serde_array_attribute(ctx, options, overrides);
+        let target = match &self.meta.variant {
+            AttributeMetaVariant::Type(type_) => Some(type_),
+            _ => None,
+        };
+        let skip = skip_empty::arguments(
+            ctx,
+            if self.is_option {
+                Occurs::Optional
+            } else {
+                Occurs::Single
+            },
+            self.target_type.serde_target_ident(target),
+            self.is_option || self.default_value.is_some(),
+            overrides,
+            options,
+        );
+        quote!(#array_attribute #[serde(#skip #arguments)])
     }
 }

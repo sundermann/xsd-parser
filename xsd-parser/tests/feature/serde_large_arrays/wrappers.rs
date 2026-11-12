@@ -14,7 +14,7 @@ use xsd_parser::{
 
 use crate::utils::{generate_test_validate, ConfigEx};
 
-fn render(mode: TypedefMode, split: bool, merge_enums: bool) -> String {
+fn render(mode: TypedefMode, split: bool, merge_enums: bool, skip: bool) -> String {
     let mut config = Config::test_default()
         .set_optimizer_flags(if merge_enums {
             OptimizerFlags::MERGE_ENUM_UNIONS
@@ -24,7 +24,11 @@ fn render(mode: TypedefMode, split: bool, merge_enums: bool) -> String {
         .with_generate([(IdentType::Element, "tns:Message")])
         .with_typedef_mode(mode)
         .with_derive(["Debug", "PartialEq"])
-        .with_render_step(RenderStep::TypesSerdeQuickXml { large_arrays: true });
+        .with_render_step(RenderStep::TypesSerdeQuickXml {
+            large_arrays: true,
+            skip_none: skip,
+            skip_empty_vecs: skip,
+        });
     if split {
         config
             .generator
@@ -75,7 +79,7 @@ fn render(mode: TypedefMode, split: bool, merge_enums: bool) -> String {
 }
 
 fn generate(expected: &str, mode: TypedefMode, split: bool) {
-    generate_test_validate(render(mode, split, false), expected);
+    generate_test_validate(render(mode, split, false, false), expected);
 }
 
 #[test]
@@ -83,7 +87,7 @@ fn merged_enumeration_payloads_receive_array_adapters() {
     // Serde XML's existing typed fallback uses serde(other), which cannot be
     // derived for a payload variant. Check adapter generation separately; the
     // compiled fixtures keep this union unmerged and exercise both payloads.
-    let code = render(TypedefMode::Typedef, false, true);
+    let code = render(TypedefMode::Typedef, false, true, false);
     let enumeration = code.split("pub enum TaggedType").nth(1).unwrap();
     assert!(
         enumeration.contains("RowType (# [serde (with ="),
@@ -178,4 +182,43 @@ fn aliases_and_newtypes_round_trip_in_both_layouts() {
     check::<newtypes::MessageType>();
     check::<aliases_type_modules::MessageType>();
     check::<newtypes_type_modules::MessageType>();
+}
+
+#[test]
+fn generate_aliases_with_skipping() {
+    generate_test_validate(
+        render(TypedefMode::Typedef, false, false, true),
+        "tests/feature/serde_large_arrays/expected/aliases_skipping.rs",
+    );
+}
+
+#[cfg(not(feature = "update-expectations"))]
+mod aliases_skipping {
+    include!("expected/aliases_skipping.rs");
+}
+
+#[test]
+#[cfg(not(feature = "update-expectations"))]
+fn skipping_coexists_with_array_alias_adapters() {
+    let row = serde_json::json!(vec!["value"; 64]);
+    let value = serde_json::json!({
+        "Row": null,
+        "Rows": [],
+        "Matrix": [row, row],
+        "Boxed": row,
+        "BigBoxes": row,
+        "List": [row],
+        "Choice": {"RowType": row},
+        "Tagged": {"RowType": row},
+    });
+    let decoded: aliases_skipping::MessageType = serde_json::from_value(value.clone()).unwrap();
+    let encoded = serde_json::to_value(decoded).unwrap();
+    let mut expected = value;
+    expected.as_object_mut().unwrap().remove("Row");
+    expected.as_object_mut().unwrap().remove("Rows");
+    assert_eq!(encoded, expected);
+    let decoded: aliases_skipping::MessageType = serde_json::from_value(encoded).unwrap();
+    assert!(decoded.row.is_none());
+    assert!(decoded.rows.is_empty());
+    assert_eq!(serde_json::to_value(decoded).unwrap(), expected);
 }

@@ -2,21 +2,25 @@
 
 Run `cargo run -p serde_large_arrays` from the workspace root.
 
-The build script selects `RenderStep::TypesSerdeQuickXml { large_arrays: true }`.
+The build script enables large-array adapters and omission of empty fields on the Serde quick-xml type step.
 The generated model keeps `[SampleType; 360]` and receives a
 `serde_with` adapter automatically. The example round-trips the model as JSON.
 
-The option belongs to the Serde render steps and is disabled by default:
+The options belong to the Serde render steps and are disabled by default:
 
 ```rust
 use xsd_parser::{Config, config::RenderStep};
 
 let config = Config::default()
     .with_serde_quick_xml()
-    .with_render_step(RenderStep::TypesSerdeQuickXml { large_arrays: true });
+    .with_render_step(RenderStep::TypesSerdeQuickXml {
+        large_arrays: true,
+        skip_none: true,
+        skip_empty_vecs: true,
+    });
 ```
 
-For `serde-xml-rs`, select `RenderStep::TypesSerdeXmlRs { version, large_arrays: true }`.
+For `serde-xml-rs`, the same options are available on `RenderStep::TypesSerdeXmlRs`.
 Plain `Types` and direct quick-xml serialization do not emit Serde adapters.
 
 Generated-code consumers need a `serde_with` dependency with its `std` or `alloc`
@@ -53,3 +57,23 @@ unconditional codec or default.
 Only field-level defaults are inspected; when using struct-level
 `#[serde(default)]` with a custom `Default` implementation, configure field
 defaults explicitly to prevent missing fields from receiving different values.
+
+`skip_none` omits named fields containing `Option::None`; `skip_empty_vecs`
+omits named fields containing empty vectors. They work independently of each
+other and of `large_arrays`, and require only Serde. Tuple and enum payloads
+are preserved. Aliases and boxed fields are recognized without rewriting the
+rendered Rust syntax. Plain `Types` and direct quick-xml generation do not
+apply omission rules.
+
+Existing skip predicates remain in control. Explicit field defaults take
+precedence over backend defaults. Automatic omission retains fields with
+custom default functions, including generated schema-default methods, because
+omitting a value could replace it with a different value. Custom deserializers
+need a plain Serde default before their fields can be omitted. Missing-list
+behavior otherwise follows the chosen backend; omission does not add XSD
+minimum-occurrence validation.
+
+Conditional overrides inside `cfg_attr` are not evaluated when choosing skip
+predicates. Select unconditional field attributes during generation instead.
+The example checks that the absent description and empty tags are omitted
+while all 360 samples round-trip.
