@@ -75,6 +75,7 @@ impl UnionTypeVariant<'_> {
             target_type,
             variant_ident,
             extra_attributes,
+            payload_attributes,
             ..
         } = self;
 
@@ -82,7 +83,7 @@ impl UnionTypeVariant<'_> {
 
         quote! {
             #( #[#extra_attributes] )*
-            #variant_ident ( #target_type ),
+            #variant_ident ( #( #[#payload_attributes] )* #target_type ),
         }
     }
 }
@@ -93,6 +94,7 @@ impl DynamicData<'_> {
     fn render_types(&self, ctx: &mut Context<'_, '_>) {
         let Self {
             type_ident,
+            payload_attributes,
             trait_ident,
             sub_traits,
             trait_impls,
@@ -114,7 +116,7 @@ impl DynamicData<'_> {
             #docs
             #derive
             #( #[#extra_attributes] )*
-            pub struct #type_ident(pub #box_<dyn #trait_ident>);
+            pub struct #type_ident( #( #[#payload_attributes] )* pub #box_<dyn #trait_ident>);
 
             pub trait #trait_ident: #dyn_traits { }
 
@@ -143,6 +145,7 @@ impl ReferenceData<'_> {
             occurs,
             type_ident,
             target_type,
+            payload_attributes,
             trait_impls,
             ..
         } = self;
@@ -175,7 +178,7 @@ impl ReferenceData<'_> {
                     #docs
                     #derive
                     #( #[#extra_attributes] )*
-                    pub struct #type_ident(pub #target_type);
+                    pub struct #type_ident( #( #[#payload_attributes] )* pub #target_type);
 
                     #( #trait_impls )*
                 }
@@ -231,6 +234,7 @@ impl EnumerationDataVariant<'_> {
             variant_ident,
             target_type,
             extra_attributes,
+            payload_attributes,
             ..
         } = self;
 
@@ -239,7 +243,7 @@ impl EnumerationDataVariant<'_> {
         let target_type = target_type.as_ref().map(|target_type| {
             let target_type = ctx.resolve_type_for_module(target_type);
 
-            quote!((#target_type))
+            quote!(( #( #[#payload_attributes] )* #target_type))
         });
 
         quote! {
@@ -258,6 +262,7 @@ impl SimpleData<'_> {
             occurs,
             type_ident,
             target_type,
+            payload_attributes,
             trait_impls,
             ..
         } = self;
@@ -274,7 +279,7 @@ impl SimpleData<'_> {
             #docs
             #derive
             #( #[#extra_attributes] )*
-            pub struct #type_ident(pub #target_type);
+            pub struct #type_ident( #( #[#payload_attributes] )* pub #target_type);
 
             #( #trait_impls )*
         };
@@ -449,11 +454,13 @@ impl ComplexDataElement<'_> {
     fn render_variant(&self, ctx: &Context<'_, '_>) -> TokenStream {
         let variant_ident = &self.variant_ident;
         let extra_attributes = &self.extra_attributes;
+        let payload_attributes = &self.payload_attributes;
 
         let target_type = ctx.resolve_type_for_module(&self.target_type);
         let target_type = self
             .occurs
-            .make_type(ctx, &target_type, self.need_indirection);
+            .make_type(ctx, &target_type, self.need_indirection)
+            .map(|target_type| quote!( #( #[#payload_attributes] )* #target_type));
 
         let docs = ctx.render_docs(
             RendererFlags::RENDER_ELEMENT_DOCS,

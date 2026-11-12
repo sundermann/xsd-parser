@@ -38,6 +38,7 @@ impl<'types> SimpleData<'types> {
             constrains,
             type_ident,
             target_type,
+            payload_attributes: Vec::new(),
             trait_impls,
         })
     }

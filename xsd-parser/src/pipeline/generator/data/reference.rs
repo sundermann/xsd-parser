@@ -39,6 +39,7 @@ impl<'types> ReferenceData<'types> {
             occurs,
             type_ident,
             target_type,
+            payload_attributes: Vec::new(),
             trait_impls,
         })
     }
@@ -61,6 +62,7 @@ impl<'types> ReferenceData<'types> {
             occurs: Occurs::Single,
             type_ident: ctx.current_type_ref().path.ident().clone(),
             target_type,
+            payload_attributes: Vec::new(),
             trait_impls: Vec::new(),
         })
     }

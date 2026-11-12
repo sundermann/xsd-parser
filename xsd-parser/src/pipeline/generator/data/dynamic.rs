@@ -37,6 +37,7 @@ impl<'types> DynamicData<'types> {
         Ok(Self {
             meta,
             type_ident,
+            payload_attributes: Vec::new(),
             trait_ident,
             deserializer_ident,
             trait_impls,

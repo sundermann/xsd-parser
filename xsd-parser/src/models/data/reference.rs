@@ -35,6 +35,12 @@ pub struct ReferenceData<'types> {
     /// Actual target type of this referenced type.
     pub target_type: PathData,
 
+    /// Additional attributes for the tuple field when rendered as a newtype.
+    ///
+    /// Each entry is the content of an attribute, without the surrounding `#[...]`.
+    /// Ignored for type aliases, which have no field.
+    pub payload_attributes: Vec<TokenStream>,
+
     /// List of traits that needs to be implemented by this type.
     pub trait_impls: Vec<TokenStream>,
 }

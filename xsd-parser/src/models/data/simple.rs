@@ -29,6 +29,11 @@ pub struct SimpleData<'types> {
     /// Actual target type of this referenced type.
     pub target_type: PathData,
 
+    /// Additional attributes for the tuple field containing the value.
+    ///
+    /// Each entry is the content of an attribute, without the surrounding `#[...]`.
+    pub payload_attributes: Vec<TokenStream>,
+
     /// List of traits that needs to be implemented by this type.
     pub trait_impls: Vec<TokenStream>,
 }

@@ -58,6 +58,7 @@ impl UnionMetaType {
             target_type,
             variant_ident,
             extra_attributes,
+            payload_attributes: Vec::new(),
         })
     }
 }

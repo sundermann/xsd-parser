@@ -19,6 +19,11 @@ pub struct DynamicData<'types> {
     /// The identifier of the rendered type.
     pub type_ident: Ident2,
 
+    /// Additional attributes for the tuple field containing the boxed dynamic value.
+    ///
+    /// Each entry is the content of an attribute, without the surrounding `#[...]`.
+    pub payload_attributes: Vec<TokenStream>,
+
     /// The identifier of the trait that needs to be implemented
     /// by the derived types.
     pub trait_ident: Ident2,

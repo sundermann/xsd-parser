@@ -718,6 +718,7 @@ impl<'types> ComplexDataElement<'types> {
             need_indirection,
             target_is_dynamic,
             extra_attributes,
+            payload_attributes: Vec::new(),
         }))
     }
 
@@ -756,6 +757,7 @@ impl<'types> ComplexDataElement<'types> {
             need_indirection: false,
             target_is_dynamic: false,
             extra_attributes,
+            payload_attributes: Vec::new(),
         }
     }
 
@@ -804,6 +806,7 @@ impl<'types> ComplexDataElement<'types> {
             need_indirection: false,
             target_is_dynamic: false,
             extra_attributes,
+            payload_attributes: Vec::new(),
         }
     }
 }

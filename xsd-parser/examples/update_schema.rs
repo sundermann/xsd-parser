@@ -238,6 +238,7 @@ fn wrap_struct(
             target_type: PathData::from_path(IdentPath::from_str("NamespaceScope").unwrap())
                 .with_using("xsd_parser_types::xml::NamespaceScope")
                 .with_generic(IdentPath::from_ident(format_ident!("{inner}Type"))),
+            payload_attributes: Vec::new(),
             trait_impls: Vec::new(),
         }),
         extra_attributes: Vec::new(),

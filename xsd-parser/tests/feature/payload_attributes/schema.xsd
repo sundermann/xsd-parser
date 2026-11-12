@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="http://example.com"
+           targetNamespace="http://example.com">
+    <xs:element name="Value" type="xs:unsignedInt" />
+
+    <xs:simpleType name="Count">
+        <xs:restriction base="xs:unsignedInt">
+            <xs:minInclusive value="1" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="Counts">
+        <xs:list itemType="xs:unsignedInt" />
+    </xs:simpleType>
+
+    <xs:simpleType name="NumberOrText">
+        <xs:union memberTypes="xs:unsignedInt xs:string" />
+    </xs:simpleType>
+
+    <xs:simpleType name="Code">
+        <xs:restriction base="xs:unsignedInt">
+            <xs:enumeration value="0" />
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="OpenCode">
+        <xs:union memberTypes="tns:Code xs:unsignedInt" />
+    </xs:simpleType>
+
+    <xs:complexType name="Choice">
+        <xs:choice>
+            <xs:element name="Number" type="xs:unsignedInt" />
+            <xs:element name="Numbers" type="xs:unsignedInt" minOccurs="3" maxOccurs="3" />
+            <xs:element name="Text" type="xs:string" />
+        </xs:choice>
+    </xs:complexType>
+
+    <xs:complexType name="Record">
+        <xs:sequence>
+            <xs:element name="Number" type="xs:unsignedInt" />
+        </xs:sequence>
+    </xs:complexType>
+</xs:schema>

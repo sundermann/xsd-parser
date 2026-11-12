@@ -144,6 +144,7 @@ impl EnumerationMetaVariant {
                     variant_ident,
                     target_type,
                     extra_attributes,
+                    payload_attributes: Vec::new(),
                 }))
             }
         }

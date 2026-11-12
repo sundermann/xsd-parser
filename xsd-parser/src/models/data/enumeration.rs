@@ -54,6 +54,12 @@ pub struct EnumerationDataVariant<'types> {
 
     /// Additional attributes that will be added to the variant.
     pub extra_attributes: Vec<TokenStream>,
+
+    /// Additional attributes for the variant's tuple field, if it has a payload.
+    ///
+    /// Each entry is the content of an attribute, without the surrounding `#[...]`.
+    /// Ignored for unit variants. Variant-level attributes use [`Self::extra_attributes`].
+    pub payload_attributes: Vec<TokenStream>,
 }
 
 /// Value renderer to render either a constant or a getter function for

@@ -90,6 +90,7 @@ mod nonzero_int;
 mod num_big_int;
 mod numeric_fields;
 mod override_;
+mod payload_attributes;
 mod redefine;
 mod ref_to_attribute;
 mod schema_display_name;

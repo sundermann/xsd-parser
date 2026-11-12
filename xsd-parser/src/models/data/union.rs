@@ -47,4 +47,10 @@ pub struct UnionTypeVariant<'types> {
 
     /// Additional attributes that will be added to the variant.
     pub extra_attributes: Vec<TokenStream>,
+
+    /// Additional attributes for the variant's tuple field.
+    ///
+    /// Each entry is the content of an attribute, without the surrounding `#[...]`.
+    /// Variant-level attributes use [`Self::extra_attributes`].
+    pub payload_attributes: Vec<TokenStream>,
 }

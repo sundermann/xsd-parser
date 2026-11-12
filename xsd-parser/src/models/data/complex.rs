@@ -250,6 +250,13 @@ pub struct ComplexDataElement<'types> {
 
     /// Additional attributes that will be added to the element.
     pub extra_attributes: Vec<TokenStream>,
+
+    /// Additional attributes for the tuple field when rendered as an enum variant.
+    ///
+    /// Each entry is the content of an attribute, without the surrounding `#[...]`.
+    /// Ignored for named struct fields and variants without a payload.
+    /// Field- or variant-level attributes use [`Self::extra_attributes`].
+    pub payload_attributes: Vec<TokenStream>,
 }
 
 /// Origin of a [`ComplexDataElement`].
